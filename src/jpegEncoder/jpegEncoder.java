@@ -35,34 +35,7 @@ class jpegEncoder
 	static long appnLength = 0;
 	static long dqtLength = 0;
 	static StringBuilder builder = new StringBuilder();
-	static quantizationTable[] qTables = new quantizationTable[4];
-	
-	
-	//Quantization Tables
-	/*final int luminanceQTable[] = 
-		{
-			  16, 11, 10, 16, 24, 40, 51, 61, 
-		      12, 12, 14, 19, 26, 58, 60, 55, 
-		      14, 13, 16, 24, 40, 57, 69, 56, 
-		      14, 17, 22, 29, 51, 87, 80, 62,
-		      18, 22, 37, 56, 68, 109, 103, 77,
-		      24, 35, 55, 64, 81, 104, 113, 92,
-		      49, 64, 78, 87, 103, 121, 120, 101,
-		      72, 92, 95, 98, 112, 100, 103, 99
-		};
-	
-	final int chrominanceQTable[] = 
-		{
-			  17, 18, 24, 47, 99, 99, 99, 99,
-		      18, 21, 26, 66, 99, 99, 99, 99,
-		      24, 26, 56, 99, 99, 99, 99, 99,
-		      47, 66, 99, 99, 99, 99, 99, 99,
-		      99, 99, 99, 99, 99, 99, 99, 99,
-		      99, 99, 99, 99, 99, 99, 99, 99,
-		      99, 99, 99, 99, 99, 99, 99, 99,
-		      99, 99, 99, 99, 99, 99, 99, 99 	
-		};*/
-			
+	static quantizationTable[] qTables = new quantizationTable[4];		
 	
 	//Application Segment (APPN) markers	
 	static byte APP[] = new byte[16];
@@ -70,21 +43,11 @@ class jpegEncoder
 	//Huffman table
 	static final byte DHT = (byte) 0xC4;
 
-	//JPEG extensions
-	static final byte JPG = (byte) 0xC8;
-
-	//Arithmetic coding 
-	static final byte DAC = (byte) 0xCC;
-
 	//Other markers
 	static final byte SOI = (byte) 0xD8;	
 	static final byte EOI = (byte) 0xD9;
 	static final byte SOS = (byte) 0xDA;
 	static final byte DQT = (byte) 0xDB;
-	static final byte DNL = (byte) 0xDC;
-	static final byte DRI = (byte) 0xDD;
-	static final byte DHP = (byte) 0xDE;
-	static final byte EXP = (byte) 0xDF;
 
 	
 	public static void main(String[] args) 
@@ -122,18 +85,6 @@ class jpegEncoder
 		SOF[13] = (byte) 0xCD;
 		SOF[14] = (byte) 0xCE;
 		SOF[15] = (byte) 0xCF;
-		
-		//Restart Interval (RST) markers
-		final byte RST[] = new byte[8];
-		RST[0] = (byte) 0xD0;
-		RST[1] = (byte) 0xD1;
-		RST[2] = (byte) 0xD2;
-		RST[3] = (byte) 0xD3;
-		RST[4] = (byte) 0xD4;
-		RST[5] = (byte) 0xD5;
-		RST[6] = (byte) 0xD6;
-		RST[7] = (byte) 0xD7;
-
 		
 		String filename;
 		
@@ -214,6 +165,13 @@ class jpegEncoder
 				byte current = data[0];
 				byte current2 = data[1];
 				
+				//TESTING - prints out values in the jpeg file (from array)
+				for(int i=0; i<fileLength; i++)
+				{
+					System.out.print(String.format("%02x", data[i])+ " ");
+				}
+				
+				
 				//For testing purposes
 				//builder.append(String.format("%02x", data & 0xFF));
 				//System.out.println(builder.toString());
@@ -245,9 +203,11 @@ class jpegEncoder
 						if((data[i] & 0xFF) == (DQT & 0xFF))
 						{
 							//System.out.println("Reading DQT marker");
+							//System.out.println(String.format("%02x", data[i]));
 							
 							dqtLength = (data[i] << 8) + data[i];
 							dqtLength -= 2;
+							
 							
 							//Testing
 							//builder.append(String.format("%02x", dqtLength & 0xFF));
@@ -265,19 +225,25 @@ class jpegEncoder
 								table = (byte) (data[i+1] & 0xFF);
 								dqtLength -= 1;
 								tableID =  (byte) (table & 0x0F);
+							
 								
 								if(tableID > 3)
 								{
-									System.out.println("Invalid DQT table ID " + Byte.toUnsignedInt(tableID));
+									//System.out.println("Invalid DQT table ID " + Byte.toUnsignedInt(tableID));
 									validJPEG = false;
 									break;
 								}
 								//System.out.println(builder.append(String.format("%02x", tableID & 0xFF)));
 								
+								//update boolean variable if tableID is valid
 								qTables[tableID].isSet = true;
 								
+								//checks the first part of the byte for table information by shifting 4 bits
+								//to see if a 16 bit Q table or a 8 bit Q table is needed (0 for 8 bit, 1 for 16 bit)
 								if((table >> 4) != 0)
 								{
+									//set current quantization table to equal next 2 bytes in the array (file)
+									//then subtract 128 from length since the values are already read in
 									for(int j=0; j<64; j++)
 									{
 										qTables[tableID].QuantizationTable[j] = (byte) ((data[j] << 8) + data[j]);
@@ -286,6 +252,8 @@ class jpegEncoder
 								}
 								else
 								{
+									//set current quantization table equal to next byte in file and subtract 64 from
+									//length since this is a 8 bit table
 									for(int j=0; j<64; j++)
 									{
 										qTables[tableID].QuantizationTable[j] = data[j];
@@ -294,25 +262,28 @@ class jpegEncoder
 								}
 							}
 						}
+					}
 					
 							
-						   //System.out.println(dqtLength);
-							
-							/*if(dqtLength != 0)
-							{
-								System.out.println("Invalid DQT marker");
-							}
-							break;*/
-							
-						//Read the APPN marker
-						/*if(((data[i] & 0xFF) >= (APP[0] & 0xFF)) && ((data[i] & 0xFF) <= (APP[15] & 0xFF)))
+				   //System.out.println(dqtLength);
+					
+					/*if(dqtLength != 0)
+					{
+						System.out.println("Invalid DQT marker");
+					}
+					break;*/
+					
+					//Read the APPN marker
+					for(int i=0; i<fileLength; i++)
+					{
+						if(((data[i] & 0xFF) >= (APP[0] & 0xFF)) && ((data[i] & 0xFF) <= (APP[15] & 0xFF)))
 						{
 							//System.out.println("Reading APPN");
 							appnLength = ((data[i] << 8) + data[i]) & 0xFFFFFFFFL;
 							
 							break;
-						}	*/
-					}
+						}	
+					}	
 			}
 				
 				/*if(validJPEG == false)
@@ -323,7 +294,7 @@ class jpegEncoder
 				{
 					System.out.println("Valid JPEG");
 				}*/	
-		}
+			}
 		}
 				
 		catch (IOException e)
@@ -339,18 +310,18 @@ class jpegEncoder
 			n.printStackTrace();
 		}
 	
-		}
+	}
 	
 	
 	public static void displayHeader()
 	{
-		System.out.println("DQT HEADER\n");
+		System.out.println("\nDQT HEADER");
 		
 		for(int i=0; i<4; i++)
 		{
 			if(qTables[i].isSet)
 			{
-				System.out.println("Table ID: "+ i);
+				System.out.println("\nTable ID: "+ i);
 				System.out.println("Data:");
 				
 				for(int j=0; j<64; j++)
@@ -359,8 +330,8 @@ class jpegEncoder
 					{
 						System.out.print("\n");
 					}
-					System.out.print(((qTables[i].QuantizationTable[j]) & 0xFF) + " ");
-					//System.out.print((String.format("%02x", (qTables[i].QuantizationTable[j] )& 0xFF) + " "));
+					System.out.print(((qTables[i].QuantizationTable[j])) + " ");
+					//System.out.print((String.format("%02d", (qTables[i].QuantizationTable[j]) )+ " "));
 				}
 				System.out.print("\n");
 			}
