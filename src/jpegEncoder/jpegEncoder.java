@@ -32,14 +32,17 @@ class quantizationTable
 //class to hold information about the colour components 
 class colourComponent
 {
-	byte hSamplingFactor = 1;
-	byte vSamplingFactor = 1;
-	byte qTableID = 0;
-	boolean isUsed = false;
+	byte hSamplingFactor;
+	byte vSamplingFactor;
+	byte qTableID;
+	boolean isUsed;
 	
 	public colourComponent()
 	{
-		
+		hSamplingFactor = 1;
+		vSamplingFactor = 1;
+		qTableID = 0;
+		isUsed = false;
 	}
 }
 
@@ -174,6 +177,11 @@ class jpegEncoder
 			qTables[i] = new quantizationTable();
 		}
 		
+		for(int i=0; i<colour.length; i++)
+		{
+			colour[i] = new colourComponent();
+		}
+		
 		//TESTING
 		/*quantizationTable q = new quantizationTable();
 		byte[] accessArray = new byte[4];
@@ -250,6 +258,7 @@ class jpegEncoder
 						validJPEG = false;
 						output.close();
 					}
+			
 					
 					//Reading DQT Marker and populate the Quantization tables
 					for(int i=0; i<fileLength; i++)
@@ -335,6 +344,8 @@ class jpegEncoder
 						//check if current element in file array is the SOF marker
 						if((data[i] & 0xFF) == (SOF[0] & 0xFF))
 						{
+							
+							
 							//System.out.println("Reading SOF marker");
 							
 							//set the type as baseline jpeg
@@ -381,6 +392,7 @@ class jpegEncoder
 							//get the number of components (has to be either 1 or 3)
 							components = (byte) (data[i+8] & 0xFF);
 							
+							
 							//check if the components is 4, if so, this is invalid
 							if(components == 4)
 							{
@@ -397,15 +409,37 @@ class jpegEncoder
 								break;
 							}
 							
+							//System.out.println("\n" + String.format("%02x", data[i+8]));
+							
+							//int ind = i+8;
+							int ind = 0;
 							//THIS IS WHERE THE ERROR IS
 							//loop for the amount of components in order to continue reading for the component ID, 
 							//sampling factor, and quantization ID
 							for(int j=0; j<components; j++)
 							{
-								//get the component ID
-								componentID = (byte) (data[j+1] & 0xFF);
 								
-								//Since the YCbCr jpeg has colour component ID's as 1, 2, and 3, anthing else
+								if(componentID == 01)
+								{
+									ind = i+11;
+								}
+								else if(componentID == 02)
+								{
+									ind = i+14;
+								}
+								else if(componentID == 03)
+								{
+									break;
+								}
+								else if(componentID == 0)
+								{
+									ind = i+8;
+								}
+								
+								//get the component ID
+								componentID = (byte) (data[ind+1] & 0xFF);
+								
+								//Since the YCbCr jpeg has colour component ID's as 1, 2, and 3, anything else
 								//is invalid
 								if(componentID == 0 || componentID > 3)
 								{
@@ -416,7 +450,8 @@ class jpegEncoder
 								
 								//use the object to store the array at index componentID - 1 b/c the loop index
 								//runs from 0,1,2, and since the component IDs are 1,2,3, then we need to subtract 1
-								colourComp = colour[componentID - 1];
+								colourComp = colour[(int)(componentID-1)];
+								//System.out.println("\n" + String.format("%02x", colour[componentID-1]));
 								
 								//check if colour component is already being used, if so, this is an error
 								//since there cannot be duplicate component IDs
@@ -430,7 +465,7 @@ class jpegEncoder
 								colourComp.isUsed = true;
 								
 								//get the sampling factor 
-								samplingFactor = (byte) (data[i] & 0xFF);
+								samplingFactor = (byte) (data[ind+2] & 0xFF);
 								
 								//get first half of sampling factor (horizontal) by shifting right 4 bits
 								colourComp.hSamplingFactor = (byte) (samplingFactor >> 4);
@@ -438,17 +473,8 @@ class jpegEncoder
 								//get other half of sampling factor (vertical) by using bitwise AND
 								colourComp.vSamplingFactor = (byte) (samplingFactor & 0x0F);
 								
-								
-								//check if the sampling factors are valid
-								if(colourComp.hSamplingFactor != 1 || colourComp.vSamplingFactor != 1)
-								{
-									System.out.println("Invalid sampling factors");
-									validJPEG = false;
-									break;
-								}
-								
 								//get the quantization table id
-								colourComp.qTableID = (byte) (data[j+1] & 0xFF);;
+								colourComp.qTableID = (byte) (data[ind+3] & 0xFF);
 								
 								//check that the quantization table ID is not greater than 3 for this component
 								if(colourComp.qTableID > 3)
@@ -457,6 +483,7 @@ class jpegEncoder
 									validJPEG = false;
 									break;
 								}
+								
 							
 							}
 							
@@ -467,6 +494,7 @@ class jpegEncoder
 								System.out.println("Invalid SOF marker");
 								validJPEG = false;
 							}
+							
 						}
 							
 					}	
@@ -479,6 +507,7 @@ class jpegEncoder
 						System.out.println("Invalid DQT marker");
 					}
 					break;*/
+					
 					
 					//Read the APPN marker
 					for(int i=0; i<fileLength; i++)
